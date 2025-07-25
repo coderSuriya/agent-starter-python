@@ -1,6 +1,7 @@
 import logging
 
 from dotenv import load_dotenv
+from livekit import agents
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -15,7 +16,7 @@ from livekit.agents import (
 )
 from livekit.agents.llm import function_tool
 from livekit.agents.voice import MetricsCollectedEvent
-from livekit.plugins import cartesia, deepgram, noise_cancellation, openai, silero
+from livekit.plugins import google, openai, noise_cancellation, silero # Changed imports
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 logger = logging.getLogger("agent")
@@ -46,7 +47,12 @@ class Assistant(Agent):
 
         logger.info(f"Looking up weather for {location}")
 
-        return "sunny with a temperature of 70 degrees."
+        # In a real app, you would make an API call to a weather service here.
+        # For this example, we'll just return a fixed response.
+        if location.lower() in ["tokyo", "paris", "san francisco"]:
+             return "sunny with a temperature of 70 degrees."
+        else:
+             return f"I'm sorry, I cannot look up the weather for {location}."
 
 
 def prewarm(proc: JobProcess):
@@ -59,52 +65,6 @@ async def entrypoint(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # Set up a voice AI pipeline using OpenAI, Cartesia, Deepgram, and the LiveKit turn detector
+    # Set up a voice AI pipeline using OpenAI and Google services
     session = AgentSession(
-        # any combination of STT, LLM, TTS, or realtime API can be used
-        llm=openai.LLM(model="gpt-4o-mini"),
-        stt=deepgram.STT(model="nova-3", language="multi"),
-        tts=cartesia.TTS(voice="6f84f4b8-58a2-430c-8c79-688dad597532"),
-        # use LiveKit's turn detection model
-        turn_detection=MultilingualModel(),
-        vad=ctx.proc.userdata["vad"],
-    )
-
-    # To use the OpenAI Realtime API, use the following session setup instead:
-    # session = AgentSession(
-    #     llm=openai.realtime.RealtimeModel()
-    # )
-
-    # log metrics as they are emitted, and total usage after session is over
-    usage_collector = metrics.UsageCollector()
-
-    @session.on("metrics_collected")
-    def _on_metrics_collected(ev: MetricsCollectedEvent):
-        metrics.log_metrics(ev.metrics)
-        usage_collector.collect(ev.metrics)
-
-    async def log_usage():
-        summary = usage_collector.get_summary()
-        logger.info(f"Usage: {summary}")
-
-    # shutdown callbacks are triggered when the session is over
-    ctx.add_shutdown_callback(log_usage)
-
-    await session.start(
-        agent=Assistant(),
-        room=ctx.room,
-        room_input_options=RoomInputOptions(
-            # LiveKit Cloud enhanced noise cancellation
-            # - If self-hosting, omit this parameter
-            # - For telephony applications, use `BVCTelephony` for best results
-            noise_cancellation=noise_cancellation.BVC(),
-        ),
-        room_output_options=RoomOutputOptions(transcription_enabled=True),
-    )
-
-    # join the room when agent is ready
-    await ctx.connect()
-
-
-if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
+        # any combination of STT, LLM, TTS, or realtime API
